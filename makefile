@@ -1,5 +1,5 @@
 all:
-	gcc main.c -o mymy
+	gcc main.c -o mymy -lm
 	./mymy
 
 clean:
