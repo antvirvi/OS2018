@@ -60,8 +60,8 @@ printf("\tend create lists\n");
 }
 
 int insert_bucket(void * pointer, struct node * page){ //edw prosthetoume mia timi sto hashtable
-		printf("insert bucket\n");
-unsigned int address =  (size_t)&pointer;
+	printf("insert bucket\n");
+	unsigned int address =  (size_t)&pointer;
 //	printf("Pointerr address !! %#16x   %p\n",address,(size_t)&pointer);
 
 	int position = hash(address);
@@ -85,6 +85,32 @@ unsigned int address =  (size_t)&pointer;
 }
 
 
+
+int check_bucket(void * pointer, struct node * page){ //edw prosthetoume mia timi sto hashtable
+	printf("check bucket\n");
+	unsigned int address =  (size_t)&pointer;
+
+	int position = hash(address);
+	struct	bucket * ptr;
+	if(hashtable[position].address!=0){
+		if (hashtable[position].address == address){
+			return 1;
+		}
+		ptr =  hashtable[position].next;
+		while(ptr!=NULL){
+			if (hashtable[position].address == address){
+				return 1;}
+			ptr=ptr->next;
+		}
+	return 0;
+	}
+	else{
+		return 0;
+	}
+}
+
+
+
 int create_hashtable(){//dimiourgia tou hashtable an den uparxei
 	printf("create hash table\n");	
 	if(hashtable!=NULL)
@@ -103,11 +129,13 @@ int create_hashtable(){//dimiourgia tou hashtable an den uparxei
 }
 
 
-long int round_down(long int adr){ //epistrfei to pollaplasio tou 4096 sto opoio anikei to adr
-	long int i = 0;
-	while(i<adr)
-		i+=PGSZ;
-	i-=PGSZ;
+size_t round_down(size_t adr){ //epistrfei to pollaplasio tou 4096 sto opoio anikei to adr
+	printf("Round down\n");
+	size_t i = adr % PGSZ;
+	size_t j = adr - i;
+	printf("%u\n", (unsigned int)adr);	
+	printf("%u\n", (unsigned int)j);
+	printf("\tend Round down\n");
 	return i;
 }
 
@@ -209,14 +237,12 @@ void * request_page(void){
 	if((memory==NULL)||(spare_pages==0)){		// an den exei arxikopoithei i mnimi,e inai diladi i prwti klisi tis mymalloc, i einai adeia i pool apo selides
 		memory = malloc(256*PGSZ);
 		pages_used = 0;
-		if((long int)memory%PGSZ==0)
+		if((size_t)memory%PGSZ==0)
 			spare_pages=256;  //an exoume pollaplasio tou 4096 dieythinsi tote exoume 256 diathesimes selides
 		else
 			spare_pages=255;   //an exoume pollaplasio tou 4096 dieythinsi tote exoume 256 diathesimes selides
-		while((long int)memory%PGSZ)
+		while((size_t)memory%PGSZ)
 			memory+=sizeof(char);
-//		printf("Memory begins at:%ld\n",(long int)memory);
-		//printf("\tend request page1\n");
 	}
 
 	//request new page an ftasoume edw
@@ -309,24 +335,6 @@ void *mymalloc(size_t cbytes){
 	if(cbytes==0)
 		return NULL;
 	else if(cbytes>0 && cbytes<=4096){ 			//an einai kalo megethos kanoume mymalloc
-/*
-		if(lists[pos(cbytes)]==NULL){  //an einai NULL ayti i selida, diladi den exei ksanaxrisimopoieithei tetoio megethos, to dimiourgoume
-			create_node(lists[pos(cbytes)], upperclass(cbytes));
-		printf("Dimiourgia node gia tin apothikeysi %lubytes stin klasi %d\n",cbytes,upperclass(cbytes));
-		memptr = NULL;  //ayto tha fygei, einai dokimastiko	
-		return memptr;  //ayto tha fygei, einai dokimastiko
-		}*/
-/*
-		int i;
-		for(i=0;i<PGSZ/upperclass(cbytes);i++){
-//				if(table[pos(cbytes)]->bits[i]==0)
-{
-				//PAIRNOUEM ATYI TI THESI MNIMIS
-				return memptr;
-			}	
-		}
-	*/	
-	
 
 //	printf("%zd -> %d\n",cbytes,pos(cbytes));
 		memptr = return_memory(lists[pos(cbytes)],cbytes);
@@ -340,7 +348,11 @@ void *mymalloc(size_t cbytes){
 
 }
 
-int myfree(char * pointer){
+
+
+int myfree(void * pointer){
+	size_t mom_address = round_down((size_t)&pointer);
+	
 	return 0;
 }
 
@@ -358,5 +370,6 @@ char * array =  mymalloc(8*sizeof(char));
 		printf("%zd\n",sizeof(mptr));
 		printf("Memory address: %p\n",mptr);
 	*/
+myfree(array);
 	return 0;
 }
