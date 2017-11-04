@@ -1,5 +1,6 @@
 	#include <stdio.h>
 	#include <stdlib.h>
+	#include <string.h>
 	#include <math.h>
 	#include <limits.h>
 
@@ -13,7 +14,7 @@
 
 	struct node{
 		unsigned char bitvector[16];
-		int address;
+		void * page_start;
 		int size;
 		struct node* next;
 		struct node* previous;
@@ -41,22 +42,27 @@ int hash(long int adr){
 
 
 int create_lists(){
-	printf("create index\n");
+	printf("create lists\n");
 	if(lists!=NULL)
 		return 0;
 	else{
 		int i; 
 		lists = malloc(8*sizeof(struct node *));
 		for(i=0;i<8;i++){
+			lists[i]=malloc(sizeof(struct node *));
 			lists[i]=NULL;
+			printf("\tend Create lists \n");
 		}
 	}
 		
-
+printf("\tend create lists\n");
 }
 
-int insert_bucket(int address, struct node * page){ //edw prosthetoume mia timi sto hashtable
+int insert_bucket(void * pointer, struct node * page){ //edw prosthetoume mia timi sto hashtable
 		printf("insert bucket\n");
+double address =  (size_t)&pointer;
+	printf("Pointerr address !! %lf\n",address);
+
 	int position = hash(address);
 	
 	if(hashtable[position].address!=0){
@@ -79,7 +85,7 @@ int insert_bucket(int address, struct node * page){ //edw prosthetoume mia timi 
 
 
 int create_hashtable(){//dimiourgia tou hashtable an den uparxei
-		printf("create hash table\n");	
+	printf("create hash table\n");	
 	if(hashtable!=NULL)
 		return 0;
 	else{
@@ -90,16 +96,11 @@ int create_hashtable(){//dimiourgia tou hashtable an den uparxei
 			hashtable[i].page_address = NULL;
 			hashtable[i].next = NULL;
 		}
+		printf("\t end create hash table\n");	
 		return 1;
 	}
 }
 
-
-void init_vector(unsigned char *vec){
-	int i;
-	for(i=0;i<sizeof(vec);i++)
-		vec[i]=0;
-}
 
 long int round_down(long int adr){ //epistrfei to pollaplasio tou 4096 sto opoio anikei to adr
 	long int i = 0;
@@ -116,24 +117,29 @@ int checkbit(unsigned char *bitv,int bit){ //return the bit'th bit of bitv
 	int c = pow(2,b);
 	unsigned char test = bitv[a];
 	test &= c;
+
 	if(test!=0){
-	//	printf("The %dth bit of bivector is 1\n",bit);
-		//printf("-- %d --\n",test);
 		return 1;		//	return 0 if it exists
 	}
-	else
-//		printf("Zeor bit\n");	printf("-- %d --\n",test);
-	return 0;
+	else{
+		return 0;
+	}
 }
 
-int addbit(unsigned char *bitv,int bit){ //return the bit'th bit of bitv
-
+int addbit(unsigned char *bitv,int bit){ //raisethe  bit'th bit of bitv
+	printf("Add bit\n");
 	int a = bit/CHAR_BIT; //part of char array we want
-//		printf("\nbit %d is on the %dth part of bitvector\n",bit,a);
+	printf("a is %d\n",a);
+	printf("bitv[%d] is %c\n",a,bitv[a]);
+	bitv[a] |= 1 <<bit;
+	printf("\tend of Add bit\n");
+
+//check if was succesfully completed VV
+
 	int b = (bit)%CHAR_BIT;
 	int c = pow(2,b);
-	bitv[a] |= c;
 	unsigned char test2 = bitv[a];
+
 	if(test2 &=c ){
 		return 1;		//	return 1 if it is completed succesfully
 	}
@@ -157,6 +163,22 @@ int delbit(unsigned char *bitv,int bit){ //return the bit'th bit of bitv
 		}
 }
 
+
+void init_vector(unsigned char *vec,int size){
+	int limit = 4096 / size ;
+	printf("init vector %d\n",size);
+	int i,j;
+	for(i=0;i<16;i++){
+		vec[i] &= 0;
+		printf("vec[%d] is %d\n",i,vec[i]);
+	}
+	for(j=limit;j<16*sizeof(unsigned char);j++){
+		addbit(vec,j);
+	int k = checkbit(vec,j);
+		printf("Initialized %dth bit to %d\n",j,k);
+	}
+	printf("\t end init vector\n");
+}
 
 
 int upperclass(int number){
@@ -184,8 +206,9 @@ int pos(int number){
 		return i;
 }
 
-int request_page(void){
+void * request_page(void){
 	printf("request page\n");
+	void * ret_ptr;
 	if((memory==NULL)||(spare_pages==0)){		// an den exei arxikopoithei i mnimi,e inai diladi i prwti klisi tis mymalloc, i einai adeia i pool apo selides
 		memory = malloc(256*PGSZ);
 		pages_used = 0;
@@ -195,49 +218,71 @@ int request_page(void){
 			spare_pages=255;   //an exoume pollaplasio tou 4096 dieythinsi tote exoume 256 diathesimes selides
 		while((long int)memory%PGSZ)
 			memory+=sizeof(char);
-		printf("Memory begins at:%ld\n",(long int)memory);
+//		printf("Memory begins at:%ld\n",(long int)memory);
+		//printf("\tend request page1\n");
 	}
 
 	//request new page an ftasoume edw
+//	mem_ptr = memory;
 	if(spare_pages>0){
 		pages_used++;
 		spare_pages--;
-		void *ptr = memory;
 		memory+=PGSZ; //metakinoume ton deikti tis mnimis kata mia selida enw kratame tin progoumeni timi tou.
-//			return ptr;
-		return (long int)ptr;		
+		void *ptr = memory;
+		printf("\tend request page\n");
+		return ptr;		
+
 	}
 }
 
-struct node* create_node(struct node * ptr,int size){
+int create_node(struct node * ptr, int size){
 	printf("create node\n");
 	ptr = malloc(sizeof(struct node));
-	ptr->address = request_page();
-	init_vector(ptr->bitvector);
-	ptr->next = NULL;
+	ptr->page_start = request_page();
+	printf("===Size %d, pos %d\n",size, pos(size));
+	init_vector(ptr->bitvector,size);
 	ptr->size = size ;	
-	ptr->previous = NULL;
-		
+
+	if(lists[pos(size)]==NULL)
+		lists[pos(size)] = ptr;
+	else{
+		struct node * tmp = ptr;
+		lists[pos(size)]->next = ptr;
+		ptr->next=tmp;
+		tmp->previous = ptr;
+		ptr->previous = NULL;
 	}
+printf("\tend create node\n");
+	return 1;
+}
 
 
-long int return_memory(struct node * list,int size){ // h synartisi ayti koitaei mesa sto index an iparxei diathesimos xoros se mia selida kai epistrefei ti thesi mnimi tis
-	printf("return memory\n");
-	struct node * pointer = list;
+void * return_memory(struct node * listptr,int size){ // h synartisi ayti koitaei mesa sto index an iparxei diathesimos xoros se mia selida kai epistrefei ti thesi mnimi tis
+	printf("Return memeory\n");
+	struct node * pointer = listptr, * previous;
 	int i;
 	int limit = PGSZ/size;
-	while(1){
+	while(pointer!=NULL){
+		printf("node we are checking is not NULL\n");
 		for(i=0;i<limit;i++){
-			if(checkbit(list->bitvector,i)==0){
-				addbit(list->bitvector,i);
-				return list->address + (i*size);
+			if(checkbit(pointer->bitvector,i)==0){
+				printf("return memory0 %s %d\n",pointer->bitvector,i);
+				addbit(pointer->bitvector,i);
+				insert_bucket(pointer->page_start +(i*size), pointer);
+				return pointer->page_start + (i*size);
 			}
-	
 		}
-		struct node * ptr;
-		list->next = create_node(ptr,size);
-		ptr->previous = list;
+	//	previous = pointer;
+		pointer = pointer ->next;
+		//printf("return memory>>%p %p\n",pointer, previous);
 	}
+	printf("Should create node\n");
+	create_node(pointer,size);
+//	printf("Pointer bitvector %d\n",(int)pointer->bitvector[0]);
+	addbit(pointer->bitvector,0);//kai edw annanewnoume to hash table
+	printf("Check vroum vroum\n");
+	insert_bucket(pointer->page_start+(i*size), pointer);
+	return pointer->page_start;	
 
 }
 
@@ -256,14 +301,14 @@ void *mymalloc(size_t cbytes){
 	if(!create_hashtable()){perror("create index");}
 
 	if(cbytes>=0 && cbytes<=4096){ 			//an einai kalo megethos kanoume mymalloc
-
+/*
 		if(lists[pos(cbytes)]==NULL){  //an einai NULL ayti i selida, diladi den exei ksanaxrisimopoieithei tetoio megethos, to dimiourgoume
-			lists[pos(cbytes)] = create_node(lists[pos(cbytes)],upperclass(cbytes));
+			create_node(lists[pos(cbytes)], upperclass(cbytes));
 		printf("Dimiourgia node gia tin apothikeysi %lubytes stin klasi %d\n",cbytes,upperclass(cbytes));
 		memptr = NULL;  //ayto tha fygei, einai dokimastiko	
 		return memptr;  //ayto tha fygei, einai dokimastiko
-		}
-
+		}*/
+/*
 		int i;
 		for(i=0;i<PGSZ/upperclass(cbytes);i++){
 //				if(table[pos(cbytes)]->bits[i]==0)
@@ -272,10 +317,12 @@ void *mymalloc(size_t cbytes){
 				return memptr;
 			}	
 		}
-		
+	*/	
 	
 
-	//printf("%zd -> %d\n",cbytes,upperclass(cbytes));
+//	printf("%zd -> %d\n",cbytes,pos(cbytes));
+		int mem_a = return_memory(lists[pos(cbytes)],cbytes);
+//		*memptr = mem_a;
 		return memptr;
 	}
 	else{
@@ -295,6 +342,12 @@ int main(int argc, char ** argv){
 
 
 		void *mptr = mymalloc(2587);
+		printf("Memory address: %p\n",mptr);
+
+	
+
+//		printf("Memory address: %d\n",(int)mptr);
+
 	/*
 		//free(memory);
 	unsigned char panos[16];
