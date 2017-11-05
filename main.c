@@ -6,7 +6,7 @@
 
 
 	#define PGSZ 4096
-	#define HASH 1024  
+	#define HASH 2000  
 
 	#define BVS 128  //bit vector size
 
@@ -33,11 +33,24 @@
 	void * memory = NULL; //dimourgia global deikti stin mnimi
 	int spare_pages, pages_used = 0;
 
+void printall(){
+int i;
+struct node * ptr;
+	for(i=0;i<HASH;i++)
+		if(hashtable[i].address)
+		printf("Bucket %3d-> adre: %zx\n",i,hashtable[i].address);
+
+	for(i=0;i<8;i++)
+		if(lists[i]!=NULL)
+			printf("Bucket %3d-> adre: %zx\n",i,hashtable[i].address);
+
+
+}
 
 int hash(size_t adr){
 	printf("hash\n");
 	int a = adr%HASH;
-	printf("\thash returns %d bucket\n",a);
+	printf("\thash returns %d bucket for memory %zx\n",a,(size_t)adr);
 	return a;
 }
 
@@ -59,12 +72,22 @@ int create_lists(){
 printf("\tend create lists\n");
 }
 
+size_t round_down(size_t adr){ //epistrfei to pollaplasio tou 4096 sto opoio anikei to adr
+	printf("Round down\n");
+	printf("lets round down memory %zx\n",(size_t)adr);
+	size_t i = adr % PGSZ;
+	size_t j = adr - i;
+	printf("lets round down memory %zx\n",(size_t)j);
+	printf("\tend Round down\n");
+	return j;
+}
+
 int insert_bucket(void * pointer, struct node * page){ //edw prosthetoume mia timi sto hashtable
 	printf("insert bucket\n");
-	unsigned int address =  (size_t)&pointer;
+	size_t address =  (size_t)pointer;
 //	printf("Pointerr address !! %#16x   %p\n",address,(size_t)&pointer);
 
-	int position = hash(address);
+	int position = hash(round_down(address));
 	
 	if(hashtable[position].address!=0){
 		struct bucket * ptr = hashtable[position].next;
@@ -74,39 +97,58 @@ int insert_bucket(void * pointer, struct node * page){ //edw prosthetoume mia ti
 		ptr->address = address;
 		ptr->next = NULL;
 		ptr->page_address = page;
+		printf("added to bucket %d\n",position);
 		return 1;
 	}
 	else{
 		hashtable[position].address = address;
 		hashtable[position].next = NULL;
 		hashtable[position].page_address = page;
+		printf("added to bucket %d\n",position);
 		return 1;
 	}
 }
 
 
 
-int check_bucket(void * pointer, struct node * page){ //edw prosthetoume mia timi sto hashtable
+struct node * check_bucket(void * pointer){ //edw elegxoume gia mia timi sto hashtable
 	printf("check bucket\n");
-	unsigned int address =  (size_t)&pointer;
+	printf("mem %zx\n",(size_t)pointer);
+	size_t address = (size_t)(pointer);
+	printf("addr %zx\n",(size_t)address);
+	address = round_down(address);
+
+	printf("Lets hash memory address %zx\n",address);
 
 	int position = hash(address);
 	struct	bucket * ptr;
+	struct node * ptr_node;
 	if(hashtable[position].address!=0){
 		if (hashtable[position].address == address){
-			return 1;
+			printf("\tend check_bucket\n");
+			ptr_node = (void*)hashtable[position].page_address;
+			return ptr_node;
 		}
+		printf("hashtable address %zx\n",(size_t)hashtable[position].address);
 		ptr =  hashtable[position].next;
 		while(ptr!=NULL){
-			if (hashtable[position].address == address){
-				return 1;}
+			if (ptr->address == address){
+				ptr_node= (void *)ptr->address;
+				return ptr_node;
+			}
+				printf("hashtable address %zx\n",(size_t)ptr->address);
 			ptr=ptr->next;
 		}
-	return 0;
+	printf("Empty position in hashtable\n");
+	printf("\tend check bucket\n");
+
+	return NULL;
 	}
 
 	else{
-		return 0;
+	printf("Empty list in hashtable\n");
+	printf("\tend check bucket\n");
+		return NULL;
 	}
 }
 
@@ -130,15 +172,7 @@ int create_hashtable(){//dimiourgia tou hashtable an den uparxei
 }
 
 
-size_t round_down(size_t adr){ //epistrfei to pollaplasio tou 4096 sto opoio anikei to adr
-	printf("Round down\n");
-	size_t i = adr % PGSZ;
-	size_t j = adr - i;
-	printf("%u\n", (unsigned int)adr);	
-	printf("%u\n", (unsigned int)j);
-	printf("\tend Round down\n");
-	return i;
-}
+
 
 int checkbit(unsigned char *bitv,int bit){ //return the bit'th bit of bitv
 	int a = bit/CHAR_BIT; //part of char array we want
@@ -178,6 +212,7 @@ int addbit(unsigned char *bitv,int bit){ //raisethe  bit'th bit of bitv
 	
 }
 
+
 int delbit(unsigned char *bitv,int bit){ //return the bit'th bit of bitv
 	if(!checkbit(bitv,bit))
 		return 1;
@@ -191,6 +226,13 @@ int delbit(unsigned char *bitv,int bit){ //return the bit'th bit of bitv
 			return 1;
 		else return 0;
 		}
+}
+
+
+int delentry(struct node * page_ptr, void * pointer){
+	int offset =  PGSZ%sizeof(pointer);
+	delbit(page_ptr->bitvector, offset);
+	return 1;
 }
 
 
@@ -219,7 +261,7 @@ int upperclass(int number){
 	return tmp;
 }
 
-int pos(int number){
+int pos(int number){ //epistrefei to keli tou pinaka lists
 	int tmp=32, i=0;
 		if(number<0){
 			printf("Odd request! Reconsider\n");
@@ -246,8 +288,6 @@ void * request_page(void){
 			memory+=sizeof(char);
 	}
 
-	//request new page an ftasoume edw
-//	mem_ptr = memory;
 	if(spare_pages>0){
 		pages_used++;
 		spare_pages--;
@@ -263,7 +303,7 @@ struct node * create_node(struct node * ptr, int size){
 	printf("create node\n");
 	ptr = malloc(sizeof(struct node));
 	ptr->page_start = request_page();
-	printf("===Size %d, pos %d\n",size, pos(size));
+//	printf("===Size %d, pos %d\n",size, pos(size));
 	init_vector(ptr->bitvector,size);
 	ptr->size = size ;	
 
@@ -290,7 +330,7 @@ void * return_memory(struct node * listptr,int size){ // h synartisi ayti koitae
 		printf("node we are checking is not NULL\n");
 		for(i=0;i<limit;i++){
 			if(checkbit(pointer->bitvector,i)==0){
-				printf("return memory0 %s %d\n",pointer->bitvector,i);
+				//printf("return memory0 %s %d\n",pointer->bitvector,i);
 				addbit(pointer->bitvector,i);
 				insert_bucket(pointer->page_start +(i*size), pointer);
 				return pointer->page_start + (i*size);
@@ -305,7 +345,7 @@ void * return_memory(struct node * listptr,int size){ // h synartisi ayti koitae
 //	printf("Pointer bitvector %d\n",(int)pointer->bitvector[0]);
 	addbit(pointer->bitvector,0);//kai edw annanewnoume to hash table
 	printf("Check vroum vroum\n");
-	insert_bucket(pointer->page_start+(i*size), pointer);
+	insert_bucket(pointer->page_start, pointer);
 	return pointer->page_start;	
 
 }
@@ -333,12 +373,11 @@ void *mymalloc(size_t cbytes){
 	
 	if(!create_lists()){perror("create index");}
 	if(!create_hashtable()){perror("create index");}
-	if(cbytes==0)
-		return NULL;
-	else if(cbytes>0 && cbytes<=4096){ 			//an einai kalo megethos kanoume mymalloc
+	 if(cbytes>=0 && cbytes<=4096){ 			//an einai kalo megethos kanoume mymalloc
 
 //	printf("%zd -> %d\n",cbytes,pos(cbytes));
 		memptr = return_memory(lists[pos(cbytes)],cbytes);
+printf("In main : %zx\n",(size_t)memptr);
 //		*memptr = mem_a;
 		return memptr;
 	}
@@ -352,7 +391,17 @@ void *mymalloc(size_t cbytes){
 
 
 int myfree(void * pointer){
-	size_t mom_address = round_down((size_t)&pointer);
+	printf("my free\n");
+
+	struct node * nd = check_bucket(pointer);
+	if(nd != NULL){
+		delentry(nd, pointer);
+	printf("\tend my free\n");
+	return 1;
+	}
+	else{
+		free(pointer);
+	}
 	
 	return 0;
 }
@@ -363,14 +412,16 @@ int main(int argc, char ** argv){
 
 
 char * array =  mymalloc(8*sizeof(char));
-	strcpy(array,"hashfoo231231231312321ASDAD");
-	printf("%s\n",array);
+printf("In main : %zx\n",(size_t)array);
 
+
+printall();
 /*
 		void *mptr = malloc(0);
 		printf("%zd\n",sizeof(mptr));
 		printf("Memory address: %p\n",mptr);
 	*/
 myfree(array);
+printf("hello!\n");
 	return 0;
 }
